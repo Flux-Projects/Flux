@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FLUX — Academic Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    /* Whitish / Light Theme Variables */
+    --bg-0: #ffffff;
+    --bg-1: #f8fafc;
+    --bg-2: #f1f5f9;
+    --glass-fill: rgba(255, 255, 255, 0.65);
+    --glass-fill-strong: rgba(255, 255, 255, 0.95);
+    --glass-border: rgba(0, 0, 0, 0.08);
+    --glass-border-soft: rgba(0, 0, 0, 0.04);
+    --text-hi: #0f172a;
+    --text-mid: #475569;
+    --text-low: #64748b;
+    --teal: #0d9488;
+    --violet: #6d28d9;
+    --amber: #d97706;
+    --radius-lg: 22px;
+    --radius-md: 14px;
+    --radius-sm: 9px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: radial-gradient(circle at 15% 8%, var(--bg-0), var(--bg-1) 45%, var(--bg-2) 85%);
+    color: var(--text-hi);
+    font-family: 'Inter', -apple-system, sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+    line-height: 1.5;
+  }
+  h1, h2, h3, .brand { font-family: 'Space Grotesk', sans-serif; letter-spacing: -0.01em; }
+
+  /* ---------- liquid background blobs ---------- */
+  .blobs { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+  .blob {
+    position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.15;
+    animation: drift 26s ease-in-out infinite;
+  }
+  .blob.b1 { width: 520px; height: 520px; top: -160px; left: -120px; background: var(--teal); animation-duration: 30s; }
+  .blob.b2 { width: 460px; height: 460px; top: 20%; right: -160px; background: var(--violet); animation-duration: 34s; animation-delay: -6s; }
+  .blob.b3 { width: 380px; height: 380px; bottom: -140px; left: 20%; background: var(--amber); opacity: 0.1; animation-duration: 24s; animation-delay: -12s; }
+  @keyframes drift {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(40px, 60px) scale(1.08); }
+    66% { transform: translate(-30px, 20px) scale(0.94); }
+  }
+
+  /* ---------- layout shell ---------- */
+  .wrap { position: relative; z-index: 1; max-width: 1180px; margin: 0 auto; padding: 0 24px 80px; }
+
+  nav { display: flex; align-items: center; justify-content: space-between; padding: 26px 0 10px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 700; cursor: pointer; }
+  .brand svg { width: 28px; height: 28px; }
+  .brand small { display: block; font-family: 'Inter'; font-weight: 500; font-size: 12px; color: var(--text-low); margin-top: 1px; }
+
+  /* ---------- glass primitives ---------- */
+  .glass {
+    background: var(--glass-fill);
+    backdrop-filter: blur(24px) saturate(150%);
+    -webkit-backdrop-filter: blur(24px) saturate(150%);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.03), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  }
+
+  .btn {
+    font-family: 'Inter'; font-weight: 600; font-size: 14px; cursor: pointer;
+    border: 1px solid var(--glass-border); color: var(--text-hi);
+    background: #fff; border-radius: 99px; padding: 11px 20px;
+    transition: all .15s ease;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+  }
+  .btn:hover { background: var(--bg-1); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+  .btn.primary { background: linear-gradient(120deg, var(--teal), var(--violet)); color: #fff; border: none; }
+  .btn.primary:hover { filter: brightness(1.1); }
+  .btn.ghost { background: transparent; border-color: var(--glass-border); color: var(--text-mid); box-shadow: none; }
+
+  .admin-controls { display: flex; gap: 10px; }
+  #openAdd, #logoutBtn { display: none; }
+
+  /* ---------- views ---------- */
+  #homeView, #subjectView { transition: opacity 0.3s ease; }
+  .hidden { display: none !important; }
+
+  /* ---------- hero ---------- */
+  .hero { display: grid; grid-template-columns: 1fr; text-align: center; gap: 20px; padding: 48px 0 60px; }
+  .hero h1 { font-size: clamp(32px, 4.6vw, 52px); line-height: 1.1; margin: 0 auto 18px; font-weight: 700; max-width: 800px; }
+  .hero p.lede { color: var(--text-mid); font-size: 16px; max-width: 60ch; margin: 0 auto 26px; }
+
+  /* ---------- subjects grid (Home) ---------- */
+  .subjects-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 24px; }
+  .subject-card { 
+    padding: 30px 24px; text-align: center; cursor: pointer; transition: transform 0.2s, box-shadow 0.2s;
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+  }
+  .subject-card:hover { transform: translateY(-4px); box-shadow: 0 15px 40px rgba(0, 0, 0, 0.08); }
+  .subject-icon { width: 50px; height: 50px; background: rgba(13, 148, 136, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+  .subject-card h3 { margin: 0; font-size: 20px; color: var(--text-hi); }
+  .subject-card p { margin: 0; font-size: 14px; color: var(--text-mid); }
+
+  /* ---------- gallery (Subject View) ---------- */
+  .subject-header { display: flex; align-items: center; gap: 16px; padding: 20px 0 40px; }
+  .subject-header h2 { margin: 0; font-size: 32px; }
+  
+  .filterbar { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 6px 0 26px; }
+  .pill { font-size: 13px; font-weight: 500; color: var(--text-mid); background: #fff; border: 1px solid var(--glass-border); border-radius: 99px; padding: 8px 16px; cursor: pointer; transition: all .15s ease; }
+  .pill.active { color: #fff; background: var(--text-hi); border-color: transparent; }
+  
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+  .card { padding: 0; overflow: hidden; display: flex; flex-direction: column; background: #fff; }
+  .thumb { height: 160px; background: var(--bg-2); position: relative; display: flex; align-items: center; justify-content: center; color: var(--text-low); }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .type-tag { position: absolute; top: 12px; left: 12px; font-size: 11px; font-weight: 600; padding: 5px 11px; border-radius: 99px; background: rgba(255,255,255,0.85); backdrop-filter: blur(6px); border: 1px solid var(--glass-border); color: var(--text-hi); box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+  
+  .card-body { padding: 20px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+  .card-body h3 { font-size: 18px; margin: 0; font-weight: 600; line-height: 1.3; }
+  .card-body p { font-size: 14px; color: var(--text-mid); margin: 0; flex: 1; }
+  .card-actions { display: flex; gap: 8px; margin-top: 12px; }
+  .card-actions a, .card-actions button { font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 99px; text-decoration: none; border: 1px solid var(--glass-border); background: #f8fafc; color: var(--text-hi); cursor: pointer; }
+  .card-actions a:hover { background: #fff; border-color: var(--teal); }
+  .card-actions .del { color: #ef4444; margin-left: auto; background: transparent; border-color: transparent; display: none; }
+  .card-actions .del.active { display: block; }
+  .card-actions .del:hover { background: rgba(239, 68, 68, 0.1); }
+  .empty { grid-column: 1/-1; text-align: center; padding: 60px 20px; color: var(--text-mid); }
+
+  /* ---------- modals ---------- */
+  .overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.2); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
+  .overlay.show { display: flex; }
+  .modal { width: 100%; max-width: 480px; padding: 32px; max-height: 90vh; overflow-y: auto; background: var(--glass-fill-strong); }
+  .modal h2 { font-size: 22px; margin: 0 0 6px; }
+  .modal .sub { color: var(--text-low); font-size: 14px; margin: 0 0 24px; }
+  
+  .field { margin-bottom: 18px; }
+  .field label { display: block; font-size: 13px; font-weight: 600; color: var(--text-hi); margin-bottom: 8px; }
+  .field input[type=text], .field input[type=url], .field input[type=password], .field select, .field textarea {
+    width: 100%; background: #fff; border: 1px solid var(--glass-border); border-radius: var(--radius-sm); padding: 12px 14px; color: var(--text-hi); font-family: 'Inter'; font-size: 14px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.01);
+  }
+  .field textarea { resize: vertical; min-height: 80px; }
+  .field input:focus-visible, .field select:focus-visible, .field textarea:focus-visible { outline: 2px solid var(--teal); border-color: transparent; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 28px; }
+  .close-x { position: absolute; top: 20px; right: 20px; background: none; border: none; color: var(--text-mid); font-size: 20px; cursor: pointer; }
+
+  footer { text-align: center; color: var(--text-low); font-size: 13px; padding: 50px 0 20px; }
+</style>
+</head>
+<body>
+
+<div class="blobs">
+  <div class="blob b1"></div>
+  <div class="blob b2"></div>
+  <div class="blob b3"></div>
+</div>
+
+<div class="wrap">
+  <nav>
+    <div class="brand" onclick="goHome()">
+      <svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" fill="#0d9488"/><ellipse cx="12" cy="12" rx="10" ry="4.2" stroke="#6d28d9" stroke-width="1.6" transform="rotate(20 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4.2" stroke="#0d9488" stroke-width="1.6" opacity="0.8" transform="rotate(-20 12 12)"/></svg>
+      <div>FLUX<small>Academic Hub</small></div>
+    </div>
+    <div class="admin-controls">
+      <button class="btn ghost" id="loginBtn">Admin Login</button>
+      <button class="btn primary" id="openAdd">+ Add Material</button>
+      <button class="btn ghost" id="logoutBtn">Logout</button>
+    </div>
+  </nav>
+
+  <!-- HOME VIEW -->
+  <div id="homeView">
+    <section class="hero">
+      <h1>Your Central Hub for Academic Projects</h1>
+      <p class="lede">Access experiment manuals, complete PDFs, formulas, and projects categorized by subject. Select a department to begin.</p>
+    </section>
+    
+    <div class="subjects-grid">
+      <div class="glass subject-card" onclick="openSubject('Physics')">
+        <div class="subject-icon">⚛️</div>
+        <h3>Physics</h3>
+        <p>Optics, Mechanics & Quantum</p>
+      </div>
+      <div class="glass subject-card" onclick="openSubject('Electrical')">
+        <div class="subject-icon">⚡</div>
+        <h3>Electrical</h3>
+        <p>Circuits, Motors & Systems</p>
+      </div>
+      <div class="glass subject-card" onclick="openSubject('Mechanical')">
+        <div class="subject-icon">⚙️</div>
+        <h3>Mechanical</h3>
+        <p>Thermodynamics & Kinetics</p>
+      </div>
+      <div class="glass subject-card" onclick="openSubject('C Programming')">
+        <div class="subject-icon">💻</div>
+        <h3>C Programming</h3>
+        <p>Code, Algorithms & Logic</p>
+      </div>
+      <div class="glass subject-card" onclick="openSubject('Mathematics')">
+        <div class="subject-icon">📐</div>
+        <h3>Mathematics</h3>
+        <p>Calculus, Algebra & Stats</p>
+      </div>
+      <div class="glass subject-card" onclick="openSubject('Prof. Communication')">
+        <div class="subject-icon">📝</div>
+        <h3>Prof. Communication</h3>
+        <p>Essays, Ethics & Reports</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUBJECT VIEW (Gallery) -->
+  <div id="subjectView" class="hidden">
+    <div class="subject-header">
+      <button class="btn ghost" onclick="goHome()">← Back</button>
+      <h2 id="subjectTitle">Subject Name</h2>
+    </div>
+    <div class="filterbar" id="filterBar"></div>
+    <div class="grid" id="grid"></div>
+  </div>
+
+  <footer>Built for centralized academic storage · Protected by Admin Access</footer>
+</div>
+
+<!-- Add Project Modal -->
+<div class="overlay" id="addModal">
+  <div class="glass modal">
+    <button class="close-x" onclick="closeModals()">✕</button>
+    <h2>Add Material</h2>
+    <p class="sub">Upload notes, manuals, or project links directly.</p>
+    <form id="projForm">
+      <div class="field">
+        <label>Subject</label>
+        <select id="pSubject" required>
+          <option value="Physics">Physics</option>
+          <option value="Electrical">Electrical</option>
+          <option value="Mechanical">Mechanical</option>
+          <option value="C Programming">C Programming</option>
+          <option value="Mathematics">Mathematics</option>
+          <option value="Prof. Communication">Prof. Communication</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Material Type</label>
+        <select id="pType" required>
+          <option>Experiment Manual</option>
+          <option>Completed Experiment</option>
+          <option>Notes (PDF)</option>
+          <option>Project / Photos</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Title</label>
+        <input type="text" id="pTitle" required placeholder="e.g. KVL & KCL Experiment">
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <textarea id="pDesc" required placeholder="Short details about the material..." maxlength="150"></textarea>
+      </div>
+      <div class="field">
+        <label>Direct Link (PDF/Drive/Photo)</label>
+        <input type="url" id="pLink" required placeholder="https://drive.google.com/...">
+      </div>
+      <div class="field">
+        <label>Thumbnail (Optional)</label>
+        <input type="file" id="pThumb" accept="image/*" style="font-size:13px;">
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost" onclick="closeModals()">Cancel</button>
+        <button type="submit" class="btn primary">Upload to Hub</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Admin Login Modal -->
+<div class="overlay" id="loginModal">
+  <div class="glass modal" style="max-width: 360px;">
+    <button class="close-x" onclick="closeModals()">✕</button>
+    <h2>Admin Access</h2>
+    <p class="sub">Only authorized admin can modify files.</p>
+    <form id="loginForm">
+      <div class="field">
+        <label>Admin ID</label>
+        <input type="text" id="lUser" value="Flux@admin" required>
+      </div>
+  <div class="field">
+  <label>Password</label>
+  <input type="password" id="lPass" placeholder="Enter Password" required>
+  </div>
+      
+      <div class="modal-actions">
+        <button type="submit" class="btn primary" style="width: 100%;">Login</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const STORE_KEY = 'flux_academic_hub_v1';
+const TYPES = ['All', 'Experiment Manual', 'Completed Experiment', 'Notes (PDF)', 'Project / Photos'];
+
+let projects = JSON.parse(localStorage.getItem(STORE_KEY) || '[]');
+let activeSubject = '';
+let activeFilter = 'All';
+let isAdmin = sessionStorage.getItem('fluxAdmin') === 'true';
+
+// UI Toggles
+function updateAdminUI() {
+  document.getElementById('openAdd').style.display = isAdmin ? 'block' : 'none';
+  document.getElementById('logoutBtn').style.display = isAdmin ? 'block' : 'none';
+  document.getElementById('loginBtn').style.display = isAdmin ? 'none' : 'block';
+  if(activeSubject) renderGrid(); 
+}
+updateAdminUI();
+
+// ----------------------------------------------------
+// MOBILE BACK BUTTON FIX (Browser History API)
+// ----------------------------------------------------
+window.addEventListener('popstate', (e) => {
+  if (e.state && e.state.view === 'subject') {
+    openSubject(e.state.subject, false);
+  } else {
+    goHome(false);
+    closeModals();
+  }
+});
+
+if (!history.state) {
+  history.replaceState({ view: 'home' }, '', window.location.pathname);
+}
+// ----------------------------------------------------
+
+// Navigation
+function goHome(pushHistory = true) {
+  document.getElementById('homeView').classList.remove('hidden');
+  document.getElementById('subjectView').classList.add('hidden');
+  if (pushHistory) {
+    history.pushState({ view: 'home' }, '', window.location.pathname);
+  }
+}
+
+function openSubject(sub, pushHistory = true) {
+  activeSubject = sub;
+  activeFilter = 'All';
+  document.getElementById('subjectTitle').innerText = sub;
+  document.getElementById('homeView').classList.add('hidden');
+  document.getElementById('subjectView').classList.remove('hidden');
+  document.getElementById('pSubject').value = sub; 
+  buildFilterBar();
+  renderGrid();
+  
+  if (pushHistory) {
+    history.pushState({ view: 'subject', subject: sub }, '', '#' + sub.replace(/\s+/g, ''));
+  }
+}
+
+// Filters & Grid
+function buildFilterBar() {
+  const bar = document.getElementById('filterBar');
+  bar.innerHTML = TYPES.map(t => `<button class="pill ${t===activeFilter?'active':''}" onclick="setFilter('${t}')">${t}</button>`).join('');
+}
+function setFilter(type) {
+  activeFilter = type;
+  buildFilterBar();
+  renderGrid();
+}
+
+function renderGrid() {
+  const grid = document.getElementById('grid');
+  if(!activeSubject) return;
+  
+  let list = projects.filter(p => p.subject === activeSubject);
+  if(activeFilter !== 'All') list = list.filter(p => p.type === activeFilter);
+  list.sort((a,b) => new Date(b.date) - new Date(a.date));
+
+  if(list.length === 0) {
+    grid.innerHTML = `<div class="empty glass"><h3>No files found</h3><p>Nothing uploaded in this category yet.</p></div>`;
+  } else {
+    grid.innerHTML = list.map(p => `
+      <div class="glass card">
+        <div class="thumb">
+          ${p.thumb ? `<img src="${p.thumb}">` : 'No Preview'}
+          <span class="type-tag">${p.type}</span>
+        </div>
+        <div class="card-body">
+          <h3>${escapeHtml(p.title)}</h3>
+          <p>${escapeHtml(p.desc)}</p>
+          <div class="card-actions">
+            <a href="${p.link}" target="_blank">Open Link ↗</a>
+            <button class="del ${isAdmin ? 'active' : ''}" onclick="deleteProj('${p.id}')">Delete</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+}
+
+// Logic
+function deleteProj(id) {
+  if(!isAdmin) return;
+  if(confirm("Delete this material?")) {
+    projects = projects.filter(p => p.id !== id);
+    localStorage.setItem(STORE_KEY, JSON.stringify(projects));
+    renderGrid();
+  }
+}
+function escapeHtml(s){ const d=document.createElement('div'); d.innerText = s || ''; return d.innerHTML; }
+
+// Modals
+function closeModals() {
+  document.getElementById('addModal').classList.remove('show');
+  document.getElementById('loginModal').classList.remove('show');
+}
+document.getElementById('openAdd').onclick = () => document.getElementById('addModal').classList.add('show');
+document.getElementById('loginBtn').onclick = () => document.getElementById('loginModal').classList.add('show');
+document.getElementById('logoutBtn').onclick = () => { isAdmin = false; sessionStorage.setItem('fluxAdmin', 'false'); updateAdminUI(); goHome(); }
+
+// Admin Login
+document.getElementById('loginForm').onsubmit = (e) => {
+  e.preventDefault();
+  if(document.getElementById('lUser').value === 'Flux@admin' && document.getElementById('lPass').value === 'Vidhumaam@popcon') {
+    isAdmin = true;
+    sessionStorage.setItem('fluxAdmin', 'true');
+    closeModals();
+    updateAdminUI();
+  } else {
+    alert("Incorrect Credentials!");
+  }
+};
+
+// Add Project Form
+document.getElementById('projForm').onsubmit = async (e) => {
+  e.preventDefault();
+  if(!isAdmin) return;
+  
+  let thumbUrl = '';
+  const fileInput = document.getElementById('pThumb');
+  if(fileInput.files && fileInput.files[0]) {
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+    thumbUrl = await new Promise(res => {
+      reader.onload = e => res(e.target.result);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  projects.push({
+    id: 'id_' + Math.random().toString(36).substr(2, 9),
+    subject: document.getElementById('pSubject').value,
+    type: document.getElementById('pType').value,
+    title: document.getElementById('pTitle').value,
+    desc: document.getElementById('pDesc').value,
+    link: document.getElementById('pLink').value,
+    thumb: thumbUrl,
+    date: new Date().toISOString()
+  });
+
+  localStorage.setItem(STORE_KEY, JSON.stringify(projects));
+  closeModals();
+  document.getElementById('projForm').reset();
+  
+  if(activeSubject === document.getElementById('pSubject').value) {
+    renderGrid();
+  }
+};
+</script>
+</body>
+</html>
