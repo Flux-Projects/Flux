@@ -95,6 +95,7 @@
   .card-actions .del.active { display: block; }
   
   .empty { grid-column: 1/-1; text-align: center; padding: 60px 20px; color: var(--text-mid); }
+  .loader { grid-column: 1/-1; text-align: center; padding: 50px; color: var(--teal); font-weight: 600; }
 
   .overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.2); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
   .overlay.show { display: flex; }
@@ -122,9 +123,9 @@
       <div>FLUX<small>Academic Hub</small></div>
     </div>
     <div class="admin-controls">
-      <button class="btn ghost" id="loginBtn">Admin Login</button>
-      <button class="btn primary admin-only" id="openAdd">+ Add Material</button>
-      <button class="btn ghost admin-only" id="logoutBtn">Logout</button>
+      <button class="btn ghost" onclick="openLogin()">Admin Login</button>
+      <button class="btn primary admin-only" onclick="openAddModal()">+ Add Material</button>
+      <button class="btn ghost admin-only" onclick="logoutAdmin()">Logout</button>
     </div>
   </nav>
 
@@ -150,7 +151,9 @@
       <h2 id="subjectTitle">Subject Name</h2>
     </div>
     <div class="filterbar" id="filterBar"></div>
-    <div class="grid" id="grid"></div>
+    <div class="grid" id="grid">
+        <!-- Firebase data render yahan hoga -->
+    </div>
   </div>
 </div>
 
@@ -199,141 +202,196 @@
       </div>
       <div class="modal-actions">
         <button type="button" class="btn ghost" onclick="closeModals()">Cancel</button>
-        <button type="submit" class="btn primary">Upload Live</button>
+        <button type="submit" class="btn primary" id="uploadBtn">Upload Live</button>
       </div>
     </form>
   </div>
 </div>
 
-<script>
-const TYPES = ['All', 'Experiment Manual', 'Completed Experiment', 'Notes (PDF)', 'Project / Photos'];
-let projects = [];
-let activeSubject = '';
-let activeFilter = 'All';
-let isAdmin = sessionStorage.getItem('fluxAdmin') === 'true';
+<!-- Firebase Database Script as Module -->
+<script type="module">
+  // FIREBASE VERSION 10.8.0 IMPORTS (Same as DJPS logic)
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-// UI Setup
-function updateAdminUI() {
-  document.querySelectorAll('.admin-only').forEach(el => el.style.display = isAdmin ? 'block' : 'none');
-  document.getElementById('loginBtn').style.display = isAdmin ? 'none' : 'block';
-  if(activeSubject) renderGrid(); 
-}
-updateAdminUI();
-
-// Navigation Setup
-window.addEventListener('popstate', (e) => {
-  if (e.state && e.state.view === 'subject') openSubject(e.state.subject, false);
-  else goHome(false);
-  closeModals();
-});
-if (!history.state) history.replaceState({ view: 'home' }, '', window.location.pathname);
-
-function goHome(push = true) {
-  document.getElementById('homeView').classList.remove('hidden');
-  document.getElementById('subjectView').classList.add('hidden');
-  if (push) history.pushState({ view: 'home' }, '', window.location.pathname);
-}
-
-function openSubject(sub, push = true) {
-  activeSubject = sub; activeFilter = 'All';
-  document.getElementById('subjectTitle').innerText = sub;
-  document.getElementById('homeView').classList.add('hidden');
-  document.getElementById('subjectView').classList.remove('hidden');
-  document.getElementById('pSubject').value = sub; 
-  buildFilterBar(); 
-  fetchFromDatabase(); // Cloud se naya data layega
-  if (push) history.pushState({ view: 'subject', subject: sub }, '', '#' + sub.replace(/\s+/g, ''));
-}
-
-function buildFilterBar() {
-  document.getElementById('filterBar').innerHTML = TYPES.map(t => `<button class="pill ${t===activeFilter?'active':''}" onclick="setFilter('${t}')">${t}</button>`).join('');
-}
-function setFilter(type) { activeFilter = type; buildFilterBar(); renderGrid(); }
-
-function renderGrid() {
-  const grid = document.getElementById('grid');
-  if(!activeSubject) return;
-  
-  let list = projects.filter(p => p.subject === activeSubject);
-  if(activeFilter !== 'All') list = list.filter(p => p.type === activeFilter);
-  list.sort((a,b) => new Date(b.date) - new Date(a.date));
-
-  if(list.length === 0) {
-    grid.innerHTML = `<div class="empty glass"><h3>No files found</h3><p>Nothing uploaded yet.</p></div>`;
-  } else {
-    grid.innerHTML = list.map(p => `
-      <div class="glass card">
-        <div class="thumb"><img src="${p.thumb}"><span class="type-tag">${p.type}</span></div>
-        <div class="card-body">
-          <h3>${p.title}</h3><p>${p.desc}</p>
-          <div class="card-actions">
-            <a href="${p.link}" target="_blank">Open Link ↗</a>
-            <button class="del ${isAdmin ? 'active' : ''}" onclick="deleteProj('${p.id}')">Delete</button>
-          </div>
-        </div>
-      </div>
-    `).join('');
-  }
-}
-
-// Modals Setup
-function closeModals() {
-  document.getElementById('addModal').classList.remove('show');
-  document.getElementById('loginModal').classList.remove('show');
-}
-document.getElementById('openAdd').onclick = () => document.getElementById('addModal').classList.add('show');
-document.getElementById('loginBtn').onclick = () => document.getElementById('loginModal').classList.add('show');
-document.getElementById('logoutBtn').onclick = () => { isAdmin = false; sessionStorage.setItem('fluxAdmin', 'false'); updateAdminUI(); goHome(); }
-
-document.getElementById('loginForm').onsubmit = (e) => {
-  e.preventDefault();
-  if(document.getElementById('lUser').value === 'Flux@admin' && document.getElementById('lPass').value === 'Vidhumaam@popcon') {
-    isAdmin = true; sessionStorage.setItem('fluxAdmin', 'true');
-    closeModals(); updateAdminUI();
-  } else { alert("Incorrect Credentials!"); }
-};
-
-// ----------------------------------------------------
-// DATABASE FUNCTIONS (Temp Local Storage for layout testing)
-// ----------------------------------------------------
-function fetchFromDatabase() {
-  // Temporary: Fetching from local storage until DB is connected
-  projects = JSON.parse(localStorage.getItem('flux_hub_temp') || '[]');
-  renderGrid();
-}
-
-function deleteProj(id) {
-  if(isAdmin && confirm("Delete this material?")) {
-    projects = projects.filter(p => p.id !== id);
-    localStorage.setItem('flux_hub_temp', JSON.stringify(projects));
-    renderGrid();
-  }
-}
-
-document.getElementById('projForm').onsubmit = (e) => {
-  e.preventDefault();
-  if(!isAdmin) return;
-  
-  const newMaterial = {
-    id: 'id_' + Math.random().toString(36).substr(2, 9),
-    subject: document.getElementById('pSubject').value,
-    type: document.getElementById('pType').value,
-    title: document.getElementById('pTitle').value,
-    desc: document.getElementById('pDesc').value,
-    link: document.getElementById('pLink').value, 
-    thumb: document.getElementById('pThumb').value,
-    date: new Date().toISOString()
+  // TODO: YAHAN APNA NAYA FIREBASE CONFIG PASTE KARO
+  const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
   };
 
-  projects.push(newMaterial);
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  const TYPES = ['All', 'Experiment Manual', 'Completed Experiment', 'Notes (PDF)', 'Project / Photos'];
+  let projects = [];
   
-  // Temporary: Saving to local storage until DB is connected
-  localStorage.setItem('flux_hub_temp', JSON.stringify(projects));
-  
-  closeModals(); 
-  document.getElementById('projForm').reset();
-  if(activeSubject === document.getElementById('pSubject').value) renderGrid();
-};
+  // GLOBAL STATE
+  window.activeSubject = '';
+  window.activeFilter = 'All';
+  window.isAdmin = sessionStorage.getItem('fluxAdmin') === 'true';
+
+  // --- UI Functions ---
+  window.updateAdminUI = function() {
+    document.querySelectorAll('.admin-only').forEach(el => el.style.display = window.isAdmin ? 'block' : 'none');
+    document.querySelector('button[onclick="openLogin()"]').style.display = window.isAdmin ? 'none' : 'block';
+  };
+  window.updateAdminUI();
+
+  window.goHome = function(push = true) {
+    document.getElementById('homeView').classList.remove('hidden');
+    document.getElementById('subjectView').classList.add('hidden');
+    if (push) history.pushState({ view: 'home' }, '', window.location.pathname);
+  };
+
+  window.openSubject = function(sub, push = true) {
+    window.activeSubject = sub; 
+    window.activeFilter = 'All';
+    document.getElementById('subjectTitle').innerText = sub;
+    document.getElementById('homeView').classList.add('hidden');
+    document.getElementById('subjectView').classList.remove('hidden');
+    document.getElementById('pSubject').value = sub; 
+    window.buildFilterBar(); 
+    
+    // Cloud Fetching Trigger
+    window.fetchFromDatabase(); 
+    
+    if (push) history.pushState({ view: 'subject', subject: sub }, '', '#' + sub.replace(/\s+/g, ''));
+  };
+
+  window.buildFilterBar = function() {
+    document.getElementById('filterBar').innerHTML = TYPES.map(t => `<button class="pill ${t===window.activeFilter?'active':''}" onclick="setFilter('${t}')">${t}</button>`).join('');
+  };
+
+  window.setFilter = function(type) { 
+    window.activeFilter = type; 
+    window.buildFilterBar(); 
+    window.renderGrid(); 
+  };
+
+  window.renderGrid = function() {
+    const grid = document.getElementById('grid');
+    if(!window.activeSubject) return;
+    
+    let list = projects.filter(p => p.subject === window.activeSubject);
+    if(window.activeFilter !== 'All') list = list.filter(p => p.type === window.activeFilter);
+
+    if(list.length === 0) {
+      grid.innerHTML = `<div class="empty glass"><h3>No files found</h3><p>Nothing uploaded in this category yet.</p></div>`;
+    } else {
+      grid.innerHTML = list.map(p => `
+        <div class="glass card">
+          <div class="thumb"><img src="${p.thumb}"><span class="type-tag">${p.type}</span></div>
+          <div class="card-body">
+            <h3>${p.title}</h3><p>${p.desc}</p>
+            <div class="card-actions">
+              <a href="${p.link}" target="_blank">Open Link ↗</a>
+              <button class="del ${window.isAdmin ? 'active' : ''}" onclick="deleteProj('${p.id}')">Delete</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+  };
+
+  // --- Modals & Admin Logic ---
+  window.closeModals = function() {
+    document.getElementById('addModal').classList.remove('show');
+    document.getElementById('loginModal').classList.remove('show');
+  };
+  window.openAddModal = () => document.getElementById('addModal').classList.add('show');
+  window.openLogin = () => document.getElementById('loginModal').classList.add('show');
+  window.logoutAdmin = () => { window.isAdmin = false; sessionStorage.setItem('fluxAdmin', 'false'); window.updateAdminUI(); window.goHome(); };
+
+  document.getElementById('loginForm').onsubmit = (e) => {
+    e.preventDefault();
+    if(document.getElementById('lUser').value === 'Flux@admin' && document.getElementById('lPass').value === 'Vidhumaam@popcon') {
+      window.isAdmin = true; sessionStorage.setItem('fluxAdmin', 'true');
+      window.closeModals(); window.updateAdminUI(); window.renderGrid();
+    } else { alert("Incorrect Credentials!"); }
+  };
+
+  // --- FIREBASE CLOUD OPERATIONS ---
+
+  // 1. Fetch live data
+  window.fetchFromDatabase = async function() {
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '<div class="loader">Loading files from cloud...</div>';
+    try {
+      // Get all documents ordered by latest timestamp
+      const q = query(collection(db, "FluxMaterials"), orderBy("timestamp", "desc"));
+      const snapshot = await getDocs(q);
+      
+      projects = [];
+      snapshot.forEach((doc) => {
+          projects.push({ id: doc.id, ...doc.data() });
+      });
+      window.renderGrid();
+    } catch(e) {
+      console.error(e);
+      grid.innerHTML = '<div class="empty glass" style="color:red;">Error loading files. Check database connection.</div>';
+    }
+  };
+
+  // 2. Add new data live to database
+  document.getElementById('projForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if(!window.isAdmin) return;
+    
+    const btn = document.getElementById('uploadBtn');
+    btn.innerText = "Uploading...";
+    btn.disabled = true;
+
+    try {
+        await addDoc(collection(db, "FluxMaterials"), {
+            subject: document.getElementById('pSubject').value,
+            type: document.getElementById('pType').value,
+            title: document.getElementById('pTitle').value,
+            desc: document.getElementById('pDesc').value,
+            link: document.getElementById('pLink').value, 
+            thumb: document.getElementById('pThumb').value,
+            timestamp: serverTimestamp(),
+            date: new Date().toISOString()
+        });
+        
+        window.closeModals(); 
+        document.getElementById('projForm').reset();
+        
+        // Refresh grid after upload
+        if(window.activeSubject === document.getElementById('pSubject').value) {
+            window.fetchFromDatabase();
+        }
+    } catch(err) {
+        alert("Upload Failed: " + err.message);
+    }
+    
+    btn.innerText = "Upload Live";
+    btn.disabled = false;
+  });
+
+  // 3. Delete live data from database
+  window.deleteProj = async function(docId) {
+    if(window.isAdmin && confirm("Are you sure you want to delete this material globally?")) {
+        try {
+            await deleteDoc(doc(db, "FluxMaterials", docId));
+            window.fetchFromDatabase(); // Refresh after delete
+        } catch(err) {
+            alert("Delete Failed: " + err.message);
+        }
+    }
+  };
+
+  // Browser History Handlers
+  window.addEventListener('popstate', (e) => {
+    if (e.state && e.state.view === 'subject') window.openSubject(e.state.subject, false);
+    else window.goHome(false);
+  window.closeModals();
+  });
+  if (!history.state) history.replaceState({ view: 'home' }, '', window.location.pathname);
 </script>
 </body>
 </html>
