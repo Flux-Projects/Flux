@@ -210,24 +210,18 @@
 
 <!-- Firebase Database Script as Module -->
 <script type="module">
-  // FIREBASE VERSION 10.8.0 IMPORTS (Same as DJPS logic)
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-  // TODO: YAHAN APNA NAYA FIREBASE CONFIG PASTE KARO
+  // Tumhara Final Config
   const firebaseConfig = {
-  apiKey: "AIzaSyCOgTv7WY0W3GKRzJKs3v_qTxkxl0j7uB8",
-  authDomain: "flux-95dc9.firebaseapp.com",
-  projectId: "flux-95dc9",
-  storageBucket: "flux-95dc9.firebasestorage.app",
-  messagingSenderId: "721378573545",
-  appId: "1:721378573545:web:d597c8e94306a4fd398478",
-  measurementId: "G-VFMRKYQX70"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+    apiKey: "AIzaSyCOgTv7WY0W3GKRzJKs3v_qTxkxl0j7uB8",
+    authDomain: "flux-95dc9.firebaseapp.com",
+    projectId: "flux-95dc9",
+    storageBucket: "flux-95dc9.firebasestorage.app",
+    messagingSenderId: "721378573545",
+    appId: "1:721378573545:web:d597c8e94306a4fd398478",
+    measurementId: "G-VFMRKYQX70"
   };
 
   const app = initializeApp(firebaseConfig);
@@ -263,7 +257,6 @@ const analytics = getAnalytics(app);
     document.getElementById('pSubject').value = sub; 
     window.buildFilterBar(); 
     
-    // Cloud Fetching Trigger
     window.fetchFromDatabase(); 
     
     if (push) history.pushState({ view: 'subject', subject: sub }, '', '#' + sub.replace(/\s+/g, ''));
@@ -323,12 +316,10 @@ const analytics = getAnalytics(app);
 
   // --- FIREBASE CLOUD OPERATIONS ---
 
-  // 1. Fetch live data
   window.fetchFromDatabase = async function() {
     const grid = document.getElementById('grid');
     grid.innerHTML = '<div class="loader">Loading files from cloud...</div>';
     try {
-      // Get all documents ordered by latest timestamp
       const q = query(collection(db, "FluxMaterials"), orderBy("timestamp", "desc"));
       const snapshot = await getDocs(q);
       
@@ -343,7 +334,6 @@ const analytics = getAnalytics(app);
     }
   };
 
-  // 2. Add new data live to database
   document.getElementById('projForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     if(!window.isAdmin) return;
@@ -367,24 +357,22 @@ const analytics = getAnalytics(app);
         window.closeModals(); 
         document.getElementById('projForm').reset();
         
-        // Refresh grid after upload
         if(window.activeSubject === document.getElementById('pSubject').value) {
             window.fetchFromDatabase();
         }
     } catch(err) {
-        alert("Upload Failed: " + err.message);
+        alert("Upload Failed. Did you enable 'Test Mode' in Firestore Rules?\nError: " + err.message);
     }
     
     btn.innerText = "Upload Live";
     btn.disabled = false;
   });
 
-  // 3. Delete live data from database
   window.deleteProj = async function(docId) {
     if(window.isAdmin && confirm("Are you sure you want to delete this material globally?")) {
         try {
             await deleteDoc(doc(db, "FluxMaterials", docId));
-            window.fetchFromDatabase(); // Refresh after delete
+            window.fetchFromDatabase();
         } catch(err) {
             alert("Delete Failed: " + err.message);
         }
@@ -395,7 +383,7 @@ const analytics = getAnalytics(app);
   window.addEventListener('popstate', (e) => {
     if (e.state && e.state.view === 'subject') window.openSubject(e.state.subject, false);
     else window.goHome(false);
-  window.closeModals();
+    window.closeModals();
   });
   if (!history.state) history.replaceState({ view: 'home' }, '', window.location.pathname);
 </script>
