@@ -250,7 +250,6 @@
           <option>Experiment Manual</option>
           <option>Completed Experiment</option>
           <option>Notes (PDF)</option>
-          <option>Assignment (PDF)</option>
           <option>Project / Photos</option>
         </select>
       </div>
@@ -303,7 +302,7 @@
 
 <script>
 const STORE_KEY = 'flux_academic_hub_v1';
-const TYPES = ['All', 'Experiment Manual', 'Completed Experiment', 'Notes (PDF)','Assignment' 'Project / Photos'];
+const TYPES = ['All', 'Experiment Manual', 'Completed Experiment', 'Notes (PDF)','Project / Photos'];
 
 let projects = JSON.parse(localStorage.getItem(STORE_KEY) || '[]');
 let activeSubject = '';
