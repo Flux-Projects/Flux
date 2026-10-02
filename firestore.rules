@@ -1,0 +1,56 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    // Google (or email) accounts have an email in the token; anonymous ones do not
+    function hasEmail() { return signedIn() && 'email' in request.auth.token; }
+    function isAdmin() { return signedIn() && request.auth.token.email == 'YOUR_ADMIN_EMAIL@gmail.com'; }
+
+    // index.html study materials: everyone reads, only admin adds/deletes
+    match /FluxMaterials/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // admin.html payout pool ledger
+    match /config/{id} {
+      allow read, write: if isAdmin();
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
+      allow create: if hasEmail() && request.auth.uid == uid
+        && request.resource.data.points == 0 && request.resource.data.withdrawn == 0;
+      allow update: if signedIn() && (
+        (hasEmail() && request.auth.uid == uid && (
+          // earning: withdrawn untouched, +16000 max per update, 4,00,000 lifetime cap
+          (request.resource.data.withdrawn == resource.data.withdrawn
+            && request.resource.data.points >= resource.data.points
+            && request.resource.data.points - resource.data.points <= 16000
+            && request.resource.data.points <= 400000)
+          ||
+          // withdrawing: points untouched, withdrawn can only go up, never above points
+          (request.resource.data.points == resource.data.points
+            && request.resource.data.withdrawn > resource.data.withdrawn
+            && request.resource.data.withdrawn <= resource.data.points)
+        ))
+        ||
+        // admin rejecting a withdrawal: gives points back (withdrawn only goes down, never below 0)
+        (isAdmin()
+          && request.resource.data.points == resource.data.points
+          && request.resource.data.withdrawn < resource.data.withdrawn
+          && request.resource.data.withdrawn >= 0)
+      );
+    }
+
+    match /withdrawals/{id} {
+      allow create: if hasEmail() && request.auth.uid == request.resource.data.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.rupees >= 1
+        && request.resource.data.points == request.resource.data.rupees * 100000;
+      allow read: if signedIn() && (request.auth.uid == resource.data.uid || isAdmin());
+      allow update: if isAdmin();
+    }
+  }
+}

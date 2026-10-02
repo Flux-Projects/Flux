@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b1020">
+<title>Flux payouts</title>
+<style>
+:root{--bg:#0b1020;--panel:#141b33;--line:#243056;--text:#e8edfb;--dim:#8d99ba;--ok:#3ddc97;--warn:#ffb454;--bad:#ff6b81;--acc:#6fd3ff}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--text);font:16px/1.5 system-ui,sans-serif;padding:max(14px,env(safe-area-inset-top)) 14px 40px;max-width:640px;margin:auto}
+h1{font-size:20px;margin:6px 0 14px}h2{font-size:16px;margin:22px 0 8px;color:var(--dim)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}
+input{width:100%;background:var(--bg);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:11px;font:inherit;margin-bottom:10px}
+button,a.btn{display:inline-block;border:0;border-radius:10px;padding:10px 14px;font:700 14px system-ui;cursor:pointer;background:var(--line);color:var(--text);text-decoration:none}
+.pri{background:var(--acc);color:#04202e}.ok{background:var(--ok);color:#04261a}.bad{background:var(--bad);color:#2b0710}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.big{font-size:34px;font-weight:800}.dim{color:var(--dim);font-size:13px}.warn{color:var(--warn);font-size:14px;margin-top:6px}
+.top{display:flex;justify-content:space-between;align-items:center}
+.u{font:600 15px ui-monospace,Menlo,monospace;word-break:break-all}
+#err{color:var(--bad);font-size:14px;min-height:20px}
+</style>
+</head>
+<body>
+<section id="login" hidden>
+  <h1>Flux payouts</h1>
+  <div class="card">
+    <input id="em" type="email" placeholder="Admin email" autocomplete="email">
+    <input id="pw" type="password" placeholder="Password" autocomplete="current-password">
+    <button class="pri" id="go" type="button">Login</button>
+    <p id="err"></p>
+  </div>
+</section>
+
+<section id="app" hidden>
+  <div class="top"><h1>Flux payouts</h1><button id="out" type="button">Logout</button></div>
+  <div class="card">
+    <div class="dim">Payout pool</div>
+    <div class="big" id="pool">₹0</div>
+    <div class="warn" id="low" hidden></div>
+    <div class="row"><input id="amt" type="number" min="1" inputmode="numeric" placeholder="Top up amount in ₹" style="flex:1;margin:0"><button class="pri" id="top" type="button">Add to pool</button></div>
+    <p class="dim" style="margin-top:8px">Pool is your own ledger. Add what you set aside; it goes down when you mark a request paid.</p>
+  </div>
+  <h2 id="ph">Pending</h2><div id="pend"></div>
+  <h2>Last paid</h2><div id="paid"></div>
+</section>
+
+<script type="module">
+import {initializeApp} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import {getAuth,onAuthStateChanged,signInWithEmailAndPassword,signOut} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+import {getFirestore,collection,doc,query,where,limit,onSnapshot,writeBatch,setDoc,increment,serverTimestamp} from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+const app=initializeApp({apiKey:"AIzaSyCOgTv7WY0W3GKRzJKs3v_qTxkxl0j7uB8",authDomain:"flux-95dc9.firebaseapp.com",projectId:"flux-95dc9",storageBucket:"flux-95dc9.firebasestorage.app",messagingSenderId:"721378573545",appId:"1:721378573545:web:d597c8e94306a4fd398478"});
+const auth=getAuth(app),db=getFirestore(app),$=i=>document.getElementById(i);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>'&#'+c.charCodeAt(0)+';');
+let pool=0,pend=[],paid=[],unsubs=[];
+
+$('go').onclick=async()=>{
+  $('err').textContent='';
+  try{await signInWithEmailAndPassword(auth,$('em').value.trim(),$('pw').value)}
+  catch(e){$('err').textContent='Login failed: '+e.code}
+};
+$('out').onclick=()=>signOut(auth);
+
+onAuthStateChanged(auth,u=>{
+  unsubs.forEach(f=>f());unsubs=[];
+  const admin=u&&u.providerData.some(p=>p.providerId==='password');
+  $('login').hidden=!!admin;$('app').hidden=!admin;
+  if(!admin)return;
+  const fail=e=>{$('low').hidden=false;$('low').textContent='Read failed: '+e.code+'. Check Firestore rules and the admin email in them.'};
+  unsubs.push(onSnapshot(doc(db,'config','pool'),s=>{pool=s.exists()?(s.data().balance||0):0;render()},fail));
+  unsubs.push(onSnapshot(query(collection(db,'withdrawals'),where('status','==','pending')),s=>{pend=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.ts?.seconds||0)-(b.ts?.seconds||0));render()},fail));
+  unsubs.push(onSnapshot(query(collection(db,'withdrawals'),where('status','==','paid'),limit(20)),s=>{paid=s.docs.map(d=>({id:d.id,...d.data()}));render()},fail));
+});
+
+function when(t){return t?.seconds?new Date(t.seconds*1000).toLocaleString():'just now'}
+function render(){
+  $('pool').textContent='₹'+pool;
+  const need=pend.reduce((a,r)=>a+(+r.rupees||0),0);
+  $('low').hidden=pool>=need;$('low').textContent='Pending ₹'+need+' is more than the pool. Top up before paying.';
+  $('ph').textContent='Pending ('+pend.length+(need?', ₹'+need:'')+')';
+  $('pend').innerHTML=pend.map(r=>{
+    const link='upi://pay?pa='+encodeURIComponent(r.upi)+'&pn='+encodeURIComponent('Flux player')+'&am='+(+r.rupees||0)+'&cu=INR&tn='+encodeURIComponent('Flux reward');
+    return '<div class="card"><div class="big">₹'+(+r.rupees||0)+'</div><div class="u">'+esc(r.upi)+'</div><div class="dim">'+(+r.points||0).toLocaleString()+' pts · '+esc(when(r.ts))+'</div>'+
+      '<div class="row"><a class="btn pri" href="'+esc(link)+'">Pay in UPI app</a><button data-c="'+esc(r.upi)+'">Copy UPI</button><button class="ok" data-p="'+r.id+'">Mark paid</button><button class="bad" data-r="'+r.id+'">Reject</button></div></div>';
+  }).join('')||'<p class="dim">No pending requests.</p>';
+  $('paid').innerHTML=paid.map(r=>'<div class="card"><b>₹'+(+r.rupees||0)+'</b> to <span class="u">'+esc(r.upi)+'</span><div class="dim">'+esc(when(r.paidAt))+'</div></div>').join('')||'<p class="dim">Nothing paid yet.</p>';
+}
+
+$('top').onclick=async()=>{
+  const n=Math.floor(+$('amt').value);if(!(n>0))return;
+  await setDoc(doc(db,'config','pool'),{balance:increment(n)},{merge:true});$('amt').value='';
+};
+$('pend').onclick=async e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.c){try{await navigator.clipboard.writeText(b.dataset.c);b.textContent='Copied'}catch(x){}return}
+  const id=b.dataset.p||b.dataset.r,r=pend.find(x=>x.id===id);if(!r)return;
+  const bt=writeBatch(db);
+  if(b.dataset.p){
+    if(pool<r.rupees&&!confirm('Pool has only ₹'+pool+'. Mark paid anyway?'))return;
+    if(!confirm('Mark ₹'+r.rupees+' to '+r.upi+' as paid? Do this after you actually sent it.'))return;
+    bt.update(doc(db,'withdrawals',id),{status:'paid',paidAt:serverTimestamp()});
+    bt.set(doc(db,'config','pool'),{balance:increment(-r.rupees)},{merge:true});
+  }else{
+    if(!confirm('Reject this request and give the points back to the player?'))return;
+    bt.update(doc(db,'withdrawals',id),{status:'rejected'});
+    bt.update(doc(db,'users',r.uid),{withdrawn:increment(-r.points)});
+  }
+  try{await bt.commit()}catch(x){alert('Failed: '+x.code)}
+};
+</script>
+</body>
+</html>
